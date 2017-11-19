@@ -25,7 +25,7 @@ originally built with gcc version 4.9.2
 receives data stream and outputs test result and time log.
 
 >
-Function SampleTest(Samples):
+**Function SampleTest(Samples)**:
 
 	read Samples
 	
@@ -44,7 +44,7 @@ Function SampleTest(Samples):
 reads designed cases in file, and outputs figure and hand cases to SampleTest Module for further test.
 
 >
-Function SpecialTest:
+**Function SpecialTest**:
 
 	Read Special Samples
 	
@@ -59,7 +59,7 @@ Function SpecialTest:
 Can generate large size of red-black tree samples and hand to SampleTest Module.
 
 >
-Function EfficiencyTest(number,size):
+**Function EfficiencyTest(number,size)**:
 
 	for i<-1 to number:
 	
@@ -73,10 +73,10 @@ Function EfficiencyTest(number,size):
 
 "Console Test" is For user's test.
 
-NOTICE: Input must follow formula {N0\n Ni{ni}\n}, but not {N\n Ni\n Nij\n}.
+**NOTICE**: Input must follow formula {N0\n Ni{ni}\n}, but not {N\n Ni\n Nij\n}.
 
 >
-Function ConsoleTest(input):
+**Function ConsoleTest(input)**:
 
 	call SampleTest(input)
 
