@@ -1,6 +1,6 @@
 # Tester for red-black tree
 
-## Overall Intro**
+## Overall Intro
 
 Execute the testing BAT file to run efficiency/special/customized case testing.
 
@@ -39,9 +39,9 @@ Function SampleTest(Samples):
 		
 -------------------------------------------------------------------------------
 
-//"Special Test" is A special container for special designed case.
-//reads designed cases in file, 
-//and outputs figure and hand cases to SampleTest Module for further test.
+"Special Test" is A special container for special designed case.
+
+reads designed cases in file, and outputs figure and hand cases to SampleTest Module for further test.
 
 >
 Function SpecialTest:
