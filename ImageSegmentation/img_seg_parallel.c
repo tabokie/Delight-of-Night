@@ -1,9 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <omp.h>
-#include <math.h>
-#include <time.h>
-#include <assert.h>
+#include <stdio.h> 
+#include <stdlib.h> /*  malloc(), free(), srand(), rand()  */
+#include <omp.h> /*  omp parallel for, omp atomic  */
+#include <time.h> /*  time()  */
+#include <assert.h> /*  assert()  */
+#include <windows.h>
 
 #define MAX_SIZE					(1000)
 #define Inf 						(1e8)
@@ -13,16 +13,13 @@
 #define PutInts(arr,size)			do{printf(#arr);printf(": ");int in_i_;for(in_i_=0;in_i_<size;in_i_++)printf("%d ",arr[in_i_]);printf("\n");}while(0)
 #define Log							printf("%s",__func__);printf("\n");
 #define BP(note)                    do{printf(#note);printf(", In function %s",__func__);printf("\n");}while(0)
-// #define For(i,a,b)                  for(i=(a);(((a)<=(b))?((b)-(i)):((i)-(b)))>0;i+=(((a)<=(b))?1:-1))
+// assert(a<=b)
 #define For(i,a,b)                  for(i=(a);i<(b);i++)
 #define Min(a,b)					((a)>(b)?(b):(a))			
 typedef enum{ false, true }bool;
 
-int ROOT(int* union_set, int i){
-	int ROOT_i_ = i; while (ROOT_i_ >= 0 && union_set[ROOT_i_] >= 0)ROOT_i_ = union_set[ROOT_i_]; return ROOT_i_;
-}
 
-// sub-structure
+#define isRoot(self,vertice)				( vertice >= 0 && vertice<self->v&&self->unionSet[vertice]<0)
 typedef struct LINKED_INT_t{
 	int length;// sorting pivot
 	int* target_addr;
@@ -31,30 +28,148 @@ typedef struct LINKED_INT_t{
 
 typedef struct VERTICE_SET_t{
 	int v;
-	// for vertice v
+	// addr as unique id of VERTICE
 	int** vertice_addr;
-	lkd_int* head;// serve as a min-heap:: find min edge connected to certain vertice
-	int* unionSet;//::store union info
-	int* deleted;//:: store deletion info
-				 // for union u
-	int* unionMinVertice;//::the vertice in u with a min edge linked to outside
-	int* unionSetHead;//::union set as a linked list
+	// sorted linked list
+	//:: find minimum edge linked to a UNION
+	lkd_int* head;
+	// linear list as union set
+	// :: find UNION id of a VERTICE, 
+	// :: find size of a UNION, 
+	// :: visit all members of a UNION
+	int* unionSet;
+	// head for visit in union set
+	int* unionSetHead;
+	// max edge of spanning tree in a UNION
+	int* maxEdge;
+	int* components;
 }*v_set;
 
-int GetRandom(int ceiling);
+// linked int function
 lkd_int newLinkedInt(int length, int* target_addr);
 int insertLinkedInt(lkd_int* head_addr, lkd_int node);
-v_set verticeSetInitial(int v);
-int minUnionLinkedOut_target(v_set self, int root);
-int minUnionLinkedOut_length(v_set self, int root);
-int minUnionLinkedOut_length_with_deleted(v_set self, int root);
-int clearMinLinkedOut(v_set self, int root);
-int mergeUnion(v_set self, int r1, int r2);
-int deleteUnion(v_set self, int root);
-bool isRoot(v_set self, int vertice);
-void putUnion(v_set self);
-int verticeSetRead(v_set self, int a, int b, int l);
 
+// vertice set function
+// apply for space
+v_set verticeSetInitial(int v);
+// read and setup
+int verticeSetRead(v_set self, int a, int b, int l);
+// find minimum edge's target UNION of a UNION
+int minUnionLinkedOut_target(v_set self, int root);
+// find minimum edge's length of a UNION
+int minUnionLinkedOut_length(v_set self, int root);
+// maintenance of lkd_int* head
+int clearMinLinkedOut(v_set self, int root);
+// merge two UNIONs
+int mergeUnion(v_set self, int r1, int r2, int length);
+bool isComponent(v_set self, int root);
+int updateComponent(v_set self, int root);
+// print UNION info
+void putUnion(v_set self);
+
+// additional function
+int GetRandom(int ceiling);
+int C;
+int* locked;
+
+int main(void){
+
+	srand(time(NULL));
+
+	int THREAD_NUM = 4;
+	omp_set_num_threads(THREAD_NUM);
+	// initial data set
+	int v, e;
+	scanf("%d%d%d", &v, &e, &C);
+	v_set verticeSetInstance = verticeSetInitial(v);
+	int i;
+	int a, b, l;
+	For(i, 0, e){
+		scanf("%d%d%d", &a, &b, &l);
+		if (a < 0 || a >= v || b < 0 || b >= v)Error(No such vertice to link!);
+		verticeSetRead(verticeSetInstance, a, b, l);
+	}
+		int active_union = v;
+		// conflict handler
+	locked = New(int, v);
+	Initial(locked, 0, v);
+		// main parallel process
+	#pragma omp parallel for 
+	For(i, 0, THREAD_NUM){
+		// local param
+		int next_cursor;
+		int cursor;
+		int edge;
+		int num_cut;
+		while (active_union > 1){// if still component not deleted
+			num_cut = 0;
+			// main search block
+			do{
+				edge = -1;
+				cursor = *(verticeSetInstance->vertice_addr[GetRandom(v)]);
+				//Sleep(GetRandom(1));
+				int temp;
+				while (active_union > 1){
+					//BP(0);
+					if (cursor >= 0 && cursor < verticeSetInstance->v && !locked[cursor] && isRoot(verticeSetInstance, cursor)){
+						temp = minUnionLinkedOut_length(verticeSetInstance, cursor);
+						if (temp == edge){
+							// select the smaller union
+							next_cursor = minUnionLinkedOut_target(verticeSetInstance, cursor);
+							if (next_cursor < cursor){
+								temp = cursor;
+								cursor = next_cursor;
+								next_cursor = temp;
+							}
+							break;
+						}
+						else if (temp == Inf){
+							cursor = -1;
+							break;
+						}
+						else{
+							edge = temp;
+							cursor = minUnionLinkedOut_target(verticeSetInstance, cursor);
+						}
+					}
+					else{
+						cursor = -1;
+						break;
+					}
+				}
+			} while (active_union > 1 && (cursor < 0 || cursor >= 0 && locked[cursor]));
+			// conflict processing
+			if (cursor < 0 || active_union <= 1 || cursor == next_cursor)continue;
+			// brutally queue the conflict cursors
+			#pragma omp atomic
+			locked[cursor] += 1;
+			// filter for conflict cursor
+			if (locked[cursor] > 1){
+				continue;
+			}
+			// first in the 'atomic' queue can pass
+			int locked_cursor = cursor;
+			int ret;
+			//#pragma omp critical
+			if (verticeSetInstance->maxEdge[cursor] + C / (-verticeSetInstance->unionSet[cursor]) >= edge\
+				&&verticeSetInstance->maxEdge[next_cursor] + C / (-verticeSetInstance->unionSet[next_cursor]) >= edge){
+				cursor = mergeUnion(verticeSetInstance, cursor, next_cursor, edge);
+				num_cut = updateComponent(verticeSetInstance, cursor);
+			}
+			#pragma omp atomic
+			active_union -= num_cut;
+			//#pragma omp atomic
+			// unlock
+			locked[locked_cursor] &= 0x0000;
+		}
+	}
+	putUnion(verticeSetInstance);
+
+
+	//system("pause");
+	return 0;
+
+}
 
 //generate random number in [0,ceiling)
 int GetRandom(int ceiling){
@@ -68,8 +183,6 @@ int GetRandom(int ceiling){
 	return random;
 }
 
-// vertice set class:
-
 lkd_int newLinkedInt(int length, int* target_addr){
 	lkd_int new = New(struct LINKED_INT_t, 1);
 	new->target_addr = target_addr;
@@ -77,7 +190,6 @@ lkd_int newLinkedInt(int length, int* target_addr){
 	new->next = NULL;
 	return new;
 }
-// return remains of inserted linked list
 int insertLinkedInt(lkd_int* head_addr, lkd_int node){
 	node->next = NULL;
 	if (head_addr == NULL)Error(NIL addr for a lkd_int to insert);
@@ -124,19 +236,18 @@ v_set verticeSetInitial(int v){
 	self->unionSet = New(int, v);
 	Initial(self->unionSet, -1, v);
 
-	self->deleted = New(int, v);
-	Initial(self->deleted, 0, v);
-
-	self->unionMinVertice = New(int, v);
+	self->maxEdge = New(int, v);
+	Initial(self->maxEdge, 0, v);
 	int i;
-	For(i, 0, v)self->unionMinVertice[i] = i;
-
 	self->unionSetHead = New(int, v);
 	For(i, 0, v)self->unionSetHead[i] = i;
+	self->components = New(int, v);
+	Initial(self->components, 0, v);
 	return self;
 }
+
 int verticeSetRead(v_set self, int a, int b, int l){
-	
+
 	if (a<0 || a >= self->v || b<0 || b >= self->v)Error(Illegal input to read!);
 	int* a_addr; int* b_addr;
 	if (self->vertice_addr[a] == NULL){
@@ -162,15 +273,18 @@ int verticeSetRead(v_set self, int a, int b, int l){
 }
 void putUnion(v_set self){
 	int i, j;
-
 	PutInts(self->unionSet, self->v);
-	PutInts(self->deleted, self->v);
-	PutInts(self->unionMinVertice, self->v);
 	PutInts(self->unionSetHead, self->v);
-	For(i, 0, self->v)printf("%d ", *(self->vertice_addr[i]));
+	PutInts(self->maxEdge, self->v);
+	PutInts(self->components, self->v);
 	For(i, 0, self->v){
 		if (self->head[i] == NULL)printf(" NULL");
 		else printf(" %d", *(self->head[i]->target_addr));
+	}
+	printf("\n");
+	For(i, 0, self->v){
+		if (self->head[i] == NULL)printf(" NULL");
+		else printf(" %d", *(self->vertice_addr[i]));
 	}
 	printf("\n");
 
@@ -179,52 +293,21 @@ void putUnion(v_set self){
 	int* have_visited = New(int, v);
 	int top = -1;
 	For(i, 0, v){
-		root = ROOT(self->unionSet, i);
+		root = *(self->vertice_addr[i]);
 		For(j, 0, top + 1)if (root == have_visited[j])break;
 		if (j <= top)continue;
 		printf("root:%d;", root);
-		//printf("[%d]",minUnionLinkedOut_length(self,root));
 		have_visited[++top] = root;
 		For(j, i, v){
-			if (ROOT(self->unionSet, j) == root)printf("(%d)", j);
+			if (*(self->vertice_addr[j]) == root)printf("(%d)", j);
 		}
 		printf("\n");
 	}
 }
 
-
-bool isRoot(v_set self, int vertice){
-	
-	int v = vertice;
-	//printf("v:%d;union:%d;deleted:%d\n",v,self->unionSet[v],self->deleted[v]);
-	// printf("v:%d,union:%d,deleted:%d\n",vertice,self->unionSet[vertice],self->deleted[vertice]);
-	if (v >= 0 && v<self->v&&self->unionSet[v]<0 && !self->deleted[v])return true;
-	else return false;
-}
-
-// delete all members in a union 'root'
-int deleteUnion(v_set self, int root){
-	
-	// if not root or already deleted, exit with error
-	if (root<0 || root >= self->v || !isRoot(self, root))Error(NIL root to delete!);
-
-	// iter from head
-	int cur = self->unionSetHead[root];
-	while (cur >= 0){
-		// delete in list
-		self->deleted[cur] = 1;
-		// delete linked out
-		self->head[cur] = NULL;
-		// cur =next
-		cur = self->unionSet[cur];
-	}
-
-	return 1;
-}
-
 // receive union
-int mergeUnion(v_set self, int r1, int r2){// concurrent conflict?
-	
+int mergeUnion(v_set self, int r1, int r2, int edge){
+
 	if (!isRoot(self, r1) || !isRoot(self, r2))Error(Not root to merge!);
 	if (r1 == r2)Error(Same root to merge!);
 	// select min root
@@ -237,7 +320,7 @@ int mergeUnion(v_set self, int r1, int r2){// concurrent conflict?
 	self->unionSet[r1] += self->unionSet[r2];// size
 	self->unionSet[r2] = self->unionSetHead[r1];// b's tail link to a's head
 	self->unionSetHead[r1] = self->unionSetHead[r2];// union's head is b's head
-													// change the vertice addr
+													// change the vertice id
 	int cur = self->unionSetHead[r1];
 	while (cur >= 0){
 		*(self->vertice_addr[cur]) = r1;
@@ -252,157 +335,101 @@ int mergeUnion(v_set self, int r1, int r2){// concurrent conflict?
 		insertLinkedInt(head, cursor);
 		cursor = next;
 	}
-
+	clearMinLinkedOut(self, r1);
+	// update max edge
+	self->maxEdge[r1] = edge;
 	return r1;
 }
 
 int clearMinLinkedOut(v_set self, int root){
-	
+
 	if (!isRoot(self, root))return 0;
 	if (self->head[root] == NULL)return 1;
 
 	lkd_int* meta_cursor = self->head + root;
 	// check first node
 	while ((*meta_cursor) != NULL){
-		if (*((*meta_cursor)->target_addr) == root || self->deleted[*((*meta_cursor)->target_addr)]){
+		if (*((*meta_cursor)->target_addr) == root){
 			// same union: delete
 			*meta_cursor = (*meta_cursor)->next;
 		}
-		else return 1;
+		else break;
 	}
-	return 0;
+	lkd_int cur = self->head[root];
+	if (cur == NULL)return 1;
+	int* isLinked = New(int, self->v);
+	Initial(isLinked, 0, self->v);
+	isLinked[root] = 1;
+	while (cur->next != NULL){
+		if (isLinked[*(cur->next->target_addr)]){
+			cur->next = cur->next->next;
+			continue;
+		}
+		isLinked[*(cur->next->target_addr)] = 1;
+		cur = cur->next;
+	}
+	free(isLinked);
+	return 1;
+}
+bool isComponent(v_set self, int root){
+	if (!isRoot(self, root))Error(NIL root!);
+	if (self->components[root])return true;
+	lkd_int cur = self->head[root];
+	int neighbor;
+	int length;
+	while (cur != NULL){
+		neighbor = *(cur->target_addr);
+		length = cur->length;
+		if (self->maxEdge[root] + C / (-self->unionSet[root]) >= length
+			&&self->maxEdge[neighbor] + C / (-self->unionSet[neighbor]) >= length){
+			return false;
+		}
+		cur = cur->next;
+	}
+	return true;
+}
+int updateComponent(v_set self, int root){
+	if (!isRoot(self, root))Error(NIL root!);
+	int ret = 0;
+	// if already counted
+	if (self->components[root])return 0;
+
+	if (!isComponent(self, root)){
+		return 0;
+	}
+	self->components[root] = 1;
+	lkd_int cur = self->head[root];
+	int neighbor;
+	while (cur != NULL){
+		neighbor = *(cur->target_addr);
+		if (locked[neighbor]){
+			cur = cur->next;
+			continue;
+		}
+		if (!self->components[neighbor] && isComponent(self, neighbor)){
+			self->components[neighbor] = 1;
+			ret += -self->unionSet[neighbor];
+		}
+		cur = cur->next;
+	}
+	// is component
+	ret += -self->unionSet[root];
+	BP(0);
+	return ret;
 }
 int minUnionLinkedOut_length(v_set self, int root){
-	
-	if (!clearMinLinkedOut(self, root))return Inf;
-
-	//assert(isRoot(self,root));
+	if (locked[root])return Inf;
 	lkd_int cur = self->head[root];
+	if (cur == NULL)return Inf;
+	while (cur != NULL&&self->components[*(cur->target_addr)])cur = cur->next;
 	if (cur == NULL)return Inf;
 	return cur->length;
 }
 int minUnionLinkedOut_target(v_set self, int root){
-	
-	if (!clearMinLinkedOut(self, root))return -1;
-
-	//assert(isRoot(self, root));
+	if (locked[root])return -1;
 	lkd_int cur = self->head[root];
 	if (cur == NULL)return -1;
+	while (cur != NULL&&self->components[*(cur->target_addr)])cur = cur->next;
+	if (cur == NULL)return Inf;
 	return *(cur->target_addr);
 }
-
-int main(void){
-
-	srand(time(NULL));
-
-	int THREAD_NUM = 4;
-	omp_set_num_threads(THREAD_NUM);
-
-	// initial data set
-	int v, e, C;
-	scanf("%d%d%d", &v, &e, &C);
-	v_set verticeSetInstance = verticeSetInitial(v);
-	int i;
-	int a, b, l;
-	For(i, 0, e){
-		scanf("%d%d%d", &a, &b, &l);
-		if (a<0 || a >= v || b<0 || b >= v)Error(No such vertice to link!);
-		verticeSetRead(verticeSetInstance, a, b, l);
-	}
-
-	int active_union = v;
-	// check special cases: single vertice
-	For(i, 0, v){
-		int min_link = minUnionLinkedOut_length(verticeSetInstance, i);
-		int size = 1;
-		if (C / size<min_link){
-			deleteUnion(verticeSetInstance, i);
-			active_union--;
-		}
-	}
-
-	// conflict handler
-	int* locked = New(int, v);
-	Initial(locked, 0, v);
-
-	// main parallel process
-	#pragma omp parallel for 
-	For(i, 0, THREAD_NUM){
-		// local param
-		int cursor;
-		int cursor_trail;
-		int ifDelete;
-		while (active_union>1){// if still component not deleted
-			// printf("active:%d\n", active_union);
-			ifDelete = 0;
-			putUnion(verticeSetInstance);
-			// main search block
-			do{
-				cursor_trail = -1;
-				do{
-					cursor = GetRandom(v);
-				} while (!isRoot(verticeSetInstance, cursor) && active_union > 1);
-				int temp;
-				while (active_union>1){
-					temp = minUnionLinkedOut_length(verticeSetInstance, cursor);
-					if (temp == cursor_trail){
-						// select the smaller union
-						cursor_trail = minUnionLinkedOut_target(verticeSetInstance, cursor);
-						if (cursor_trail<cursor){
-							temp = cursor;
-							cursor = cursor_trail;
-							cursor_trail = temp;
-						}
-						break;
-					}
-					else if (temp==Inf){
-						cursor = -1;
-						break;
-					}
-					else{
-						cursor_trail = temp;
-						cursor = minUnionLinkedOut_target(verticeSetInstance, cursor);
-					}
-				}
-			} while (active_union>1 && (cursor<0 || cursor >= 0 && locked[cursor]));
-			// assert(cursor<0||locked[cursor]==0);
-
-			// conflict processing
-			if (cursor<0 || active_union <= 1 || cursor == cursor_trail)continue;
-			// brutally queue the conflict cursors
-			#pragma omp atomic
-			locked[cursor] += 1;
-
-			// filter for conflict cursor
-			if (locked[cursor]>1){
-				continue;
-			}
-			// first in the 'atomic' queue can pass
-			int cursor_history = cursor;
-
-			// main processing clock
-			int max_length = minUnionLinkedOut_length(verticeSetInstance, cursor);
-			// printf("merge %d %d with edge %d\n",cursor,cursor_trail,max_length);
-			cursor = mergeUnion(verticeSetInstance, cursor, cursor_trail);// cursor_trail-->>cursor
-																		  //bug			
-			int min_link = minUnionLinkedOut_length(verticeSetInstance, cursor);
-			int size = -verticeSetInstance->unionSet[cursor];
-			// printf("cursor:%d,max:%d,min_link:%d,size:%d\n",cursor,max_length,min_link,size);
-			if (max_length + C / size <= min_link){
-				deleteUnion(verticeSetInstance, cursor);
-				ifDelete = 1;
-			}
-			#pragma omp atomic
-			active_union -= ifDelete + 1;
-
-			// clear lock
-			locked[cursor_history] &= 0x0000;
-		}
-		// printf("Thread %d quit!<<<<<<<<<<<<<<\n", i);
-	}
-	putUnion(verticeSetInstance);
-	// system("pause");
-	return 0;
-
-}
-
