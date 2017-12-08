@@ -149,7 +149,6 @@ int main(void){
 			}
 			// first in the 'atomic' queue can pass
 			int locked_cursor = cursor;
-			int ret;
 			//#pragma omp critical
 			if (verticeSetInstance->maxEdge[cursor] + C / (-verticeSetInstance->unionSet[cursor]) >= edge\
 				&&verticeSetInstance->maxEdge[next_cursor] + C / (-verticeSetInstance->unionSet[next_cursor]) >= edge){
@@ -273,20 +272,15 @@ int verticeSetRead(v_set self, int a, int b, int l){
 }
 void putUnion(v_set self){
 	int i, j;
-	PutInts(self->unionSet, self->v);
-	PutInts(self->unionSetHead, self->v);
-	PutInts(self->maxEdge, self->v);
-	PutInts(self->components, self->v);
-	For(i, 0, self->v){
-		if (self->head[i] == NULL)printf(" NULL");
-		else printf(" %d", *(self->head[i]->target_addr));
-	}
-	printf("\n");
-	For(i, 0, self->v){
-		if (self->head[i] == NULL)printf(" NULL");
-		else printf(" %d", *(self->vertice_addr[i]));
-	}
-	printf("\n");
+	// PutInts(self->unionSet, self->v);
+	// PutInts(self->unionSetHead, self->v);
+	// PutInts(self->maxEdge, self->v);
+	// PutInts(self->components, self->v);
+	// For(i, 0, self->v){
+	// 	if (self->head[i] == NULL)printf(" NULL");
+	// 	else printf(" %d", *(self->head[i]->target_addr));
+	// }
+	// printf("\n");
 
 	int root;
 	int v = self->v;
@@ -296,10 +290,11 @@ void putUnion(v_set self){
 		root = *(self->vertice_addr[i]);
 		For(j, 0, top + 1)if (root == have_visited[j])break;
 		if (j <= top)continue;
-		printf("root:%d;", root);
+		// printf("root:%d;", root);
 		have_visited[++top] = root;
-		For(j, i, v){
-			if (*(self->vertice_addr[j]) == root)printf("(%d)", j);
+		printf("%d",root);
+		For(j, i+1, v){
+			if (*(self->vertice_addr[j]) == root)printf(" %d", j);
 		}
 		printf("\n");
 	}
@@ -414,7 +409,6 @@ int updateComponent(v_set self, int root){
 	}
 	// is component
 	ret += -self->unionSet[root];
-	BP(0);
 	return ret;
 }
 int minUnionLinkedOut_length(v_set self, int root){
