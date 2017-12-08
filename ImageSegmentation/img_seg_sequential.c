@@ -1,114 +1,178 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <omp.h>
-#include <math.h>
 #include <time.h>
 #include <assert.h>
 
-#define MAX_SIZE						(1000)
 #define Inf 							(1e8)
-#define Error(note)						({printf(#note);printf("\n");exit(1);})
 #define New(typeName,size)				(typeName*)malloc(sizeof(typeName)*(size))
-// use MACRONAME_i_ to interfere
-#define Initial(array,val,size)     	({int initial_i_;for(initial_i_=0;initial_i_<size;initial_i_++)array[initial_i_]=val;}) 
-#define For(i,a,b)                  	for(i=(a);(((a)<=(b))?((b)-(i)):((i)-(b)))>0;i+=(((a)<=(b))?1:-1))
+#define Initial(arr,val,size)     		do{int initial_i_;for(initial_i_=0;initial_i_<size;initial_i_++)arr[initial_i_]=val;}while(0)
 #define Min(a,b)						((a)>(b)?(b):(a))		
-#define Max(a,b)						((a)<(b)?(b):(a))	
+#define Max(a,b)						((a)<(b)?(b):(a))
 
+/*  MACRO for timing  */
+#define CLOCK_INIT						struct timespec start,end;
+#define CLOCK_START						clock_gettime(CLOCK_MONOTONIC,&start);
+#define CLOCK_END						clock_gettime(CLOCK_MONOTONIC,&end);
+#define CLOCK_SHOW						printf("Elapsed time: %.6f ms\n",\
+										1000*(end.tv_sec-start.tv_sec)+(double)(end.tv_nsec-start.tv_nsec)/1000000);
 
-#define CLOCK_INIT					struct timespec start,end;
-#define CLOCK_START					clock_gettime(CLOCK_MONOTONIC,&start);
-#define CLOCK_END					clock_gettime(CLOCK_MONOTONIC,&end);
-#define CLOCK_SHOW					printf("Elapsed time: %.6f ms\n",\
-									1000*(end.tv_sec-start.tv_sec)+(double)(end.tv_nsec-start.tv_nsec)/1000000);
+// global variables
+int v,e,C;
+// check if legal vertice id in graph
+#define LEGAL(vertice)					(vertice>=0&&vertice<v)					
+// return union root of a vertice
+#define ROOT(union_set,vertice)			({int ROOT_i_= vertice;\
+	while(LEGAL(ROOT_i_)&&union_set[ROOT_i_]>=0)ROOT_i_=union_set[ROOT_i_];\
+	if(!LEGAL(ROOT_i_))assert(LEGAL(ROOT_i_));\
+	ROOT_i_;})
 
+// \breif: merge two components
+// \param:
+// 	Graph info:
+//		union set
+//		max edge in spanning tree
+//	Operand:
+//		a,b: two union id
+//		max_length: the minimum length connecting a and b
+void mergeUnion(int* union_set,int* max_edge, int a, int b, int length);
 
-#define ROOT(union_set,i)				({int ROOT_i_=i;while(union_set[ROOT_i_]>=0)ROOT_i_=union_set[ROOT_i_];ROOT_i_;})	
-#define FATHER(union_set,i)				({int FATHER_i_=i;while(FATHER_i_>=0)FATHER_i_=union_set[FATHER_i_];-1*FATHER_i_;})	
-#define COMPONENT_MAX_EDGE(union_set,i)	(FATHER(union_set,i)/BASE)
-#define COMPONENT_SIZE(union_set,i)		(FATHER(union_set,i)%BASE)
-// v<=1000
-#define BASE							(10000)
-
-void CombinedExchange(int** data,int n,int a,int b);
-void CombinedSort(int** data,int n,int init,int size);
-void mergeUnionSet(int* union_set, int a, int b, int max_length);
-
-
-CLOCK_INIT
-int main(void){
-
-	int v,e,C;
-	scanf("%d%d%d",&v,&e,&C);
-
-	int* unionSet=New(int,v);
-	Initial(unionSet,-1,v);// all vertice is single component
-	int* edgeFrom=New(int,e);
-	int* edgeTo=New(int,e);
-	int* edgeLength=New(int,e);
-
-
-	int i;
-	int a,b,l;
-	For(i,0,e){
-		scanf("%d%d%d",&a,&b,&l);
-		edgeLength[i]=l;
-		edgeFrom[i]=Min(a,b);
-		edgeTo[i]=Max(a,b);
-	}
-	CLOCK_START	
-	int* sort_data[3]={edgeLength,edgeFrom,edgeTo};
-	CombinedSort(sort_data,3,0,e);
-
-	int from,to,length;
-	For(i,0,e){// visit by edge
-		from=edgeFrom[i];
-		to=edgeTo[i];
-		length=edgeLength[i];
-		if(COMPONENT_MAX_EDGE(unionSet,from)+C/COMPONENT_SIZE(unionSet,from)<length\
-			||COMPONENT_MAX_EDGE(unionSet,to)+C/COMPONENT_SIZE(unionSet,to)<length)continue;
-		mergeUnionSet(unionSet,from,to,length);
-
-	}
-	CLOCK_END
-	int j;
-	int root;
-	For(i,0,v){
-		root=ROOT(unionSet, i);
-		if(unionSet[root]==-Inf)continue;
-		printf("%d",i);
-		For(j,i+1,v){
-			if(ROOT(unionSet,j)==root)printf(" %d",j);
-		}
-		printf("\n");
-		unionSet[root]=-Inf;
-	}
-	CLOCK_SHOW
-	
-	return 0;
-}
-
-void CombinedExchange(int** data,int n,int a,int b){
-	if(data==NULL)Error(NIL column pointer doing exchange!);
-	int temp,i;
-	For(i,0,n){
-		if(data[i]==NULL)Error(NIL row pointer doing exchange!);
-		temp=data[i][a];
-		data[i][a]=data[i][b];
-		data[i][b]=temp;
-	}
-
-	return;
-}
-
-// Dual Pivot Quick sort (without randomized pivot selection)
-// Param: 
+// \brief: Dual Pivot Quick sort (without randomized pivot selection)
+// \param: 
 // 	2-dimension integer set (use first row as key)
 // 		data: pointer
 //		n: row number
 //	Sorting info
-//		init: start
+//		init: start pivot
 //		size: checking scope
+void CombinedSort(int** data,int n,int init,int size);
+
+// \brief Exchange on 2-dimension data set
+// \param:
+//	2-dimension integer set:
+//		data: pointer
+//		n: row number
+//	a,b: exchange idx
+void CombinedExchange(int** data,int n,int a,int b);
+
+
+/*  initial timing struct  */
+CLOCK_INIT
+
+int main(void){
+
+	/*  initial and read graph  */
+	scanf("%d%d%d",&v,&e,&C);
+	// apply for space>>
+	// list for union set
+	int* unionSet=New(int,v);
+	Initial(unionSet,-1,v);// all vertices are single component with size 1
+	int* maxEdge = New(int ,v);
+	Initial(maxEdge,0,v);// all vertice has no edge in there spanning tree
+	// list for edges
+	int* edgeFrom=New(int,e);
+	int* edgeTo=New(int,e);
+	int* edgeLength=New(int,e);
+
+	// read edges>>
+	int i;
+	int a,b,l;
+	for(i=0;i<e;i++){
+		scanf("%d%d%d",&a,&b,&l);
+		edgeLength[i]=l;
+		// select smaller id as FROM
+		edgeFrom[i]=Min(a,b);
+		// bigger id as TO
+		edgeTo[i]=Max(a,b);
+	}
+
+	/*  START timing  */
+	CLOCK_START	
+	// set up combined data set
+	int* sort_data[3]={edgeLength,edgeFrom,edgeTo};
+	// sort by edge length
+	CombinedSort(sort_data,3,0,e);
+
+	int from,to,length;
+	for(i=0;i<e;i++){// visit edges by length
+		// load info about current edge
+		from=edgeFrom[i];
+		to=edgeTo[i];
+		length=edgeLength[i];
+		from = ROOT(unionSet,from);
+		to = ROOT(unionSet,to);
+		// IF either of u1, u2 satisfies condition for a component
+		// pass
+		if(maxEdge[from]+C/(-unionSet[from])<length\
+			||maxEdge[to]+C/(-unionSet[to])<length)continue;
+		// ELSE
+		// merge u1 and u2
+		mergeUnion(unionSet,maxEdge, from,to,length);
+
+	}
+	CLOCK_END
+	/*  END timing  */
+
+	/*  print segemented graph  */
+	int j;
+	int root;
+	int size;
+	for(i=0;i<v;i++){
+		// fetch this element's union id
+		root=ROOT(unionSet,i);
+		// IF already printed
+		// pass
+		if(unionSet[root]==-Inf)continue;
+		size=-unionSet[root];
+		// print first element without space
+		printf("%d",i);
+		// scan the rest vertices looking for members
+		for(j=i+1;j<v&&size>0;j++){
+			if(ROOT(unionSet,j)==root){
+				printf(" %d",j);
+				size--;
+			}
+		}
+		printf("\n");
+		// mark the printed union
+		unionSet[root]=-Inf;
+	}	
+
+	/*  show timing  */
+	CLOCK_SHOW
+
+	// release applied space
+	free(unionSet);
+	free(maxEdge);
+	free(edgeLength);
+	free(edgeTo);
+	free(edgeFrom);
+
+	return 0;
+}
+
+void mergeUnion(int* union_set, int* max_edge, int a, int b, int length){
+	if(a<0||b<0)return;
+	int root=ROOT(union_set,a),son=ROOT(union_set,b),size;
+
+	// select the larger union as main union
+	if(union_set[root]>union_set[son]){
+		int temp = root;
+		root=son;
+		son=temp;
+	}
+	size=union_set[root]+union_set[son];
+	// merge small union to main union
+	// link union set
+	union_set[son] = root;
+	// store combined size
+	union_set[root] = size;
+	// store the max edge in spannin tree in new union
+	max_edge[root] = length;
+	// delete the previous max edge
+	max_edge[son] = -1;
+	return;
+}
+
 void CombinedSort(int** data,int n,int init,int size){
 	// select key row
 	int* key=data[0];
@@ -156,7 +220,7 @@ void CombinedSort(int** data,int n,int init,int size){
 		int initInfo[3]={init+0,init+pivot1+1,init+pivot2+1};
 		int sizeInfo[3]={pivot1,pivot2 - pivot1 - 1,size - pivot2 - 1};
 		// recursion begin
-		For(i,0,3)CombinedSort(data,n,initInfo[i],sizeInfo[i]);
+		for(i=0;i<3;i++)CombinedSort(data,n,initInfo[i],sizeInfo[i]);
 	}
 	// if only two element
 	else if (size == 2){
@@ -169,20 +233,15 @@ void CombinedSort(int** data,int n,int init,int size){
 	// pass
 }
 
-// 
-void mergeUnionSet(int* union_set, int a, int b, int max_length){
-	if(a<0||b<0)return;
-	int root,son,size;
-	if(COMPONENT_SIZE(union_set,a)<COMPONENT_SIZE(union_set,b)){
-		root=ROOT(union_set,b);
-		son=ROOT(union_set,a);
+void CombinedExchange(int** data,int n,int a,int b){
+	assert(data!=NULL);
+	int temp,i;
+	// for each row:
+	for(i=0;i<n;i++){
+		assert(data[i]!=NULL);
+		temp=data[i][a];
+		data[i][a]=data[i][b];
+		data[i][b]=temp;
 	}
-	else{
-		root=ROOT(union_set,a);
-		son=ROOT(union_set,b);
-	}
-	size=COMPONENT_SIZE(union_set,root)+COMPONENT_SIZE(union_set,son);
-	union_set[son]=root;
-	union_set[root]=-1*(max_length*BASE+size);
 	return;
 }
