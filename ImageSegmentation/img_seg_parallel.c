@@ -20,6 +20,7 @@ typedef enum{ false, true }bool;
 
 
 #define isRoot(self,vertice)				( vertice >= 0 && vertice<self->v&&self->unionSet[vertice]<0)
+
 typedef struct LINKED_INT_t{
 	int length;// sorting pivot
 	int* target_addr;
@@ -272,16 +273,6 @@ int verticeSetRead(v_set self, int a, int b, int l){
 }
 void putUnion(v_set self){
 	int i, j;
-	// PutInts(self->unionSet, self->v);
-	// PutInts(self->unionSetHead, self->v);
-	// PutInts(self->maxEdge, self->v);
-	// PutInts(self->components, self->v);
-	// For(i, 0, self->v){
-	// 	if (self->head[i] == NULL)printf(" NULL");
-	// 	else printf(" %d", *(self->head[i]->target_addr));
-	// }
-	// printf("\n");
-
 	int root;
 	int v = self->v;
 	int* have_visited = New(int, v);
@@ -290,7 +281,6 @@ void putUnion(v_set self){
 		root = *(self->vertice_addr[i]);
 		For(j, 0, top + 1)if (root == have_visited[j])break;
 		if (j <= top)continue;
-		// printf("root:%d;", root);
 		have_visited[++top] = root;
 		printf("%d",root);
 		For(j, i+1, v){

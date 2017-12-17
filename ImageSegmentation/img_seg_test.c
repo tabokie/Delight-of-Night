@@ -27,12 +27,12 @@ int main(void){
         scanf("%d%d%d", &a, &b, &l);
         // pass {a,b,l} to segmentor
         // i is the edge UUID by default
-        imgSeg_read(Instance,a,b,l,i);
+        imgSeg_read(Instance,i,a,b,l);
     }
 
     /*  START timing  */
     CLOCK_START
-    if(imgSeg_execute(Instance));
+    if(!imgSeg_execute(Instance))printf("Execute Error!\n");
     CLOCK_END
     /*  END timing  */
 
@@ -42,8 +42,10 @@ int main(void){
     /*  show timing  */
     CLOCK_SHOW
 
-    // tarminate process
+    // terminate process
     imgSeg_terminate(Instance);
+
+    system("pause");
 
     return 0;
 }

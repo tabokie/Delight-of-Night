@@ -66,7 +66,9 @@ int imgSeg_terminate(segmentor instance);
 /**  Second-level Function Class  **/
 
 // Check if legal vertice id in graph
+#ifndef LEGAL
 #define LEGAL(v,vertice)                  (vertice>=0&&vertice<v)                 
+#endif
 
 // Return root of a given vertice in a graph
 int ROOT(segmentor instance, int vertice);
